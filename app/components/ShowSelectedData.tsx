@@ -84,6 +84,7 @@ export default function ShowSelectedData({ dataList }: { dataList: string[] }) {
                   </td>
                   <td key="f0" className="min-w-[300px]">
                     <img
+                      loading="lazy"
                       className="m-auto"
                       src={`/data/${selectedData}_${k.suffix}.png`}
                       height="400px"
