@@ -7,7 +7,8 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: '歌唱音声合成におけるF0の自然性向上のためのDiffusion-GANモデルの検討',
-  description: '歌唱音声合成におけるF0の自然性向上のためのDiffusion-GANモデルのデモページ',
+  description:
+    '歌唱音声合成におけるF0の自然性向上のためのDiffusion-GANモデルのデモページ',
 }
 
 export default function RootLayout({

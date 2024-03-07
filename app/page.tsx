@@ -35,14 +35,12 @@ export default async function Home() {
           <ol>
             <li>
               <a id="diffgan-tts" href="https://arxiv.org/abs/2201.11972">
-                [1] DiffGAN-TTS: High-Fidelity and Efficient Text-to-Speech with Denoising Diffusion GANs
+                [1] DiffGAN-TTS: High-Fidelity and Efficient Text-to-Speech with
+                Denoising Diffusion GANs
               </a>
             </li>
             <li>
-              <a
-                id="sifisinger"
-                href="https://asj2023a.y-chan.dev/"
-              >
+              <a id="sifisinger" href="https://asj2023a.y-chan.dev/">
                 [2] SiFiSinger: SiFi-GAN を内包した歌唱音声合成
               </a>
             </li>
