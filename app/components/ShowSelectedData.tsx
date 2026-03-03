@@ -43,12 +43,7 @@ export default function ShowSelectedData({ dataList }: { dataList: string[] }) {
       </div>
       <div className="text-center py-4">
         表示するデータ
-        <select
-          className="mx-4"
-          value={selectedData}
-          onChange={handleChange}
-          defaultValue={dataList[0]}
-        >
+        <select className="mx-4" value={selectedData} onChange={handleChange}>
           {dataList.map((file) => {
             return (
               <option key={file} value={file}>
