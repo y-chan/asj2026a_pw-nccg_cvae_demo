@@ -21,10 +21,10 @@ jobs:
       with:
         node-version: 18
     - name: Install dependencies
-      run: yarn install --frozen-lockfile
+      run: pnpm i
     - name: Run script
       run: |
-        yarn build
+        pnpm build
     - name: deploy
       uses: peaceiris/actions-gh-pages@v3
       with:

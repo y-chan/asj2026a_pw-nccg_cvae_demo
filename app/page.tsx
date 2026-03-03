@@ -57,8 +57,8 @@ export default async function Home() {
           <br />
           提案手法は，WORLDと比較し，高品質かつリアルタイムな音声合成を実現することを示した．
           <div className="flex flex-col items-center">
-            <img className="w-[40vw]" src="/sifisinger.png" alt="sifisinger" />
-            <p>図1: SiFiSingerのアーキテクチャ</p>
+            <img className="w-[40vw]" src="/neuworld-arch.svg" alt="sifisinger" />
+            <p>図1: NeuWORLDのアーキテクチャ</p>
           </div>
         </div>
         <div>
