@@ -27,9 +27,7 @@ export function shapeGrid(
       const logScore =
         (alpha - 1) * Math.log(x * x + y * y) -
         ((x - mu.re) ** 2 + (y - mu.im) ** 2) / variance
-      // Stable log(1 + exp(logScore)), without overflowing the raw score.
-      const value =
-        Math.max(logScore, 0) + Math.log1p(Math.exp(-Math.abs(logScore)))
+      const value = Math.exp(logScore)
       maximum = Math.max(maximum, value)
       return value
     }),
