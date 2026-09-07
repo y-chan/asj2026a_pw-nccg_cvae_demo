@@ -5,7 +5,7 @@ import { useState } from 'react'
 
 import type { ComplexPoint } from '@/app/lib/pwnccg'
 
-const Plot = dynamic(() => import('./PwnccgPlot'), {
+const Plot = dynamic(() => import('./PwnccgPlotRouter'), {
   ssr: false,
   loading: () => (
     <div
