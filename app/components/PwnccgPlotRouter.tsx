@@ -14,7 +14,10 @@ type Props = {
   alpha: number
   variance: number
   mu: ComplexPoint
-  onMuChange: (mu: ComplexPoint) => void
+  onMuChange?: (mu: ComplexPoint) => void
+  interactive?: boolean
+  plotLimit?: number
+  matchSpectrumHeight?: boolean
 }
 
 export default function PwnccgPlotRouter(props: Props) {

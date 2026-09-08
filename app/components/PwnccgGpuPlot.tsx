@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from 'react'
 import { type ComplexPoint, LIMIT } from '@/app/lib/pwnccg'
 
 const margin = { l: 48, r: 16, t: 16, b: 48 }
-const clamp = (value: number) => Math.max(-LIMIT, Math.min(LIMIT, value))
 
 const shader = /* wgsl */ `
 struct Params {
@@ -13,7 +12,8 @@ struct Params {
   alpha: f32,
   variance: f32,
   mu: vec2f,
-  padding: vec2f,
+  plotLimit: f32,
+  padding: f32,
 }
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -54,7 +54,7 @@ fn viridis(t: f32) -> vec3f {
 fn peakLogScore() -> f32 {
   let muRadius = length(params.mu);
   let power = params.alpha - 1.0;
-  let minimumRadius = sqrt(0.5) * 40.0 / params.resolution.x;
+  let minimumRadius = sqrt(0.5) * (params.plotLimit * 2.0) / params.resolution.x;
   var maximumLogScore = power * log(minimumRadius * minimumRadius) -
     (minimumRadius - muRadius) * (minimumRadius - muRadius) / params.variance;
 
@@ -79,8 +79,8 @@ fn peakLogScore() -> f32 {
 @fragment
 fn fragment(input: VertexOutput) -> @location(0) vec4f {
   let z = vec2f(
-    input.pixel.x / params.resolution.x * 40.0 - 20.0,
-    input.pixel.y / params.resolution.y * 40.0 - 20.0,
+    input.pixel.x / params.resolution.x * (params.plotLimit * 2.0) - params.plotLimit,
+    input.pixel.y / params.resolution.y * (params.plotLimit * 2.0) - params.plotLimit,
   );
   let radiusSquared = max(dot(z, z), 0.000001);
   let distanceSquared = dot(z - params.mu, z - params.mu);
@@ -94,7 +94,10 @@ type Props = {
   alpha: number
   variance: number
   mu: ComplexPoint
-  onMuChange: (mu: ComplexPoint) => void
+  onMuChange?: (mu: ComplexPoint) => void
+  interactive?: boolean
+  plotLimit?: number
+  matchSpectrumHeight?: boolean
 }
 
 type GpuState = {
@@ -110,6 +113,9 @@ export default function PwnccgGpuPlot({
   variance,
   mu,
   onMuChange,
+  interactive = true,
+  plotLimit = LIMIT,
+  matchSpectrumHeight = false,
 }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const container = useRef<HTMLDivElement>(null)
@@ -118,7 +124,11 @@ export default function PwnccgGpuPlot({
   const pending = useRef<ComplexPoint | null>(null)
   const [size, setSize] = useState(0)
   const [ready, setReady] = useState(false)
-  const side = Math.max(1, size - margin.l - margin.r)
+  const availableSide = Math.max(1, size - margin.l - margin.r)
+  const height = matchSpectrumHeight
+    ? availableSide
+    : availableSide + margin.t + margin.b
+  const side = height - margin.t - margin.b
 
   useEffect(() => {
     const element = container.current
@@ -207,7 +217,7 @@ export default function PwnccgGpuPlot({
       variance,
       mu.re,
       mu.im,
-      0,
+      plotLimit,
       0,
     ])
     state.device.queue.writeBuffer(state.uniformBuffer, 0, values)
@@ -227,23 +237,35 @@ export default function PwnccgGpuPlot({
     pass.draw(6)
     pass.end()
     state.device.queue.submit([encoder.finish()])
-  }, [alpha, variance, mu, ready, side, size])
+  }, [alpha, variance, mu, plotLimit, ready, side, size])
 
   function move(event: React.PointerEvent<HTMLDivElement>) {
     const bounds = event.currentTarget.getBoundingClientRect()
     pending.current = {
-      re: clamp(((event.clientX - bounds.left) / bounds.width) * 40 - LIMIT),
-      im: clamp(LIMIT - ((event.clientY - bounds.top) / bounds.height) * 40),
+      re: Math.max(
+        -plotLimit,
+        Math.min(
+          plotLimit,
+          ((event.clientX - bounds.left) / bounds.width) * (plotLimit * 2) -
+            plotLimit,
+        ),
+      ),
+      im: Math.max(
+        -plotLimit,
+        Math.min(
+          plotLimit,
+          plotLimit -
+            ((event.clientY - bounds.top) / bounds.height) * (plotLimit * 2),
+        ),
+      ),
     }
     if (frame.current === null) {
       frame.current = requestAnimationFrame(() => {
         frame.current = null
-        if (pending.current) onMuChange(pending.current)
+        if (pending.current) onMuChange?.(pending.current)
       })
     }
   }
-
-  const height = side + margin.t + margin.b
 
   return (
     <div ref={container} className="relative w-full" style={{ height }}>
@@ -273,27 +295,33 @@ export default function PwnccgGpuPlot({
           />
         </g>
         <g fill="#333" fontSize="11" textAnchor="middle">
-          {[-20, -10, 0, 10, 20].map((value) => {
-            const x = margin.l + ((value + LIMIT) / 40) * side
-            return (
-              <text key={`x-${value}`} x={x} y={height - 22}>
-                {value}
-              </text>
-            )
-          })}
+          {[-plotLimit, -plotLimit / 2, 0, plotLimit / 2, plotLimit].map(
+            (value) => {
+              const x =
+                margin.l + ((value + plotLimit) / (plotLimit * 2)) * side
+              return (
+                <text key={`x-${value}`} x={x} y={height - 22}>
+                  {value}
+                </text>
+              )
+            },
+          )}
           <text x={margin.l + side / 2} y={height - 4}>
             Re(z)
           </text>
         </g>
         <g fill="#333" fontSize="11" textAnchor="end">
-          {[-20, -10, 0, 10, 20].map((value) => {
-            const y = margin.t + ((LIMIT - value) / 40) * side
-            return (
-              <text key={`y-${value}`} x={margin.l - 7} y={y + 4}>
-                {value}
-              </text>
-            )
-          })}
+          {[-plotLimit, -plotLimit / 2, 0, plotLimit / 2, plotLimit].map(
+            (value) => {
+              const y =
+                margin.t + ((plotLimit - value) / (plotLimit * 2)) * side
+              return (
+                <text key={`y-${value}`} x={margin.l - 7} y={y + 4}>
+                  {value}
+                </text>
+              )
+            },
+          )}
           <text transform={`translate(16 ${margin.t + side / 2}) rotate(-90)`}>
             Im(z)
           </text>
@@ -322,34 +350,42 @@ export default function PwnccgGpuPlot({
             event.currentTarget.releasePointerCapture(event.pointerId)
         }}
       >
-        <button
-          type="button"
-          aria-label={`μ: 実部 ${mu.re.toFixed(2)}、虚部 ${mu.im.toFixed(2)}。矢印キーで移動`}
-          title="ドラッグ、または矢印キーでμを移動"
-          className="absolute flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 cursor-grab items-center justify-center rounded-full border-2 border-white bg-black/70 text-sm font-bold text-white shadow-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white active:cursor-grabbing"
-          style={{
-            left: `${((mu.re + LIMIT) / 40) * 100}%`,
-            top: `${((LIMIT - mu.im) / 40) * 100}%`,
-          }}
-          onKeyDown={(event) => {
-            const step = event.shiftKey ? 1 : 0.1
-            const offsets: Record<string, [number, number]> = {
-              ArrowLeft: [-step, 0],
-              ArrowRight: [step, 0],
-              ArrowUp: [0, step],
-              ArrowDown: [0, -step],
-            }
-            const offset = offsets[event.key]
-            if (!offset) return
-            event.preventDefault()
-            onMuChange({
-              re: clamp(mu.re + offset[0]),
-              im: clamp(mu.im + offset[1]),
-            })
-          }}
-        >
-          μ
-        </button>
+        {interactive && (
+          <button
+            type="button"
+            aria-label={`μ: 実部 ${mu.re.toFixed(2)}、虚部 ${mu.im.toFixed(2)}。矢印キーで移動`}
+            title="ドラッグ、または矢印キーでμを移動"
+            className="absolute flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 cursor-grab items-center justify-center rounded-full border-2 border-white bg-black/70 text-sm font-bold text-white shadow-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white active:cursor-grabbing"
+            style={{
+              left: `${((mu.re + plotLimit) / (plotLimit * 2)) * 100}%`,
+              top: `${((plotLimit - mu.im) / (plotLimit * 2)) * 100}%`,
+            }}
+            onKeyDown={(event) => {
+              const step = event.shiftKey ? 1 : 0.1
+              const offsets: Record<string, [number, number]> = {
+                ArrowLeft: [-step, 0],
+                ArrowRight: [step, 0],
+                ArrowUp: [0, step],
+                ArrowDown: [0, -step],
+              }
+              const offset = offsets[event.key]
+              if (!offset) return
+              event.preventDefault()
+              onMuChange?.({
+                re: Math.max(
+                  -plotLimit,
+                  Math.min(plotLimit, mu.re + offset[0]),
+                ),
+                im: Math.max(
+                  -plotLimit,
+                  Math.min(plotLimit, mu.im + offset[1]),
+                ),
+              })
+            }}
+          >
+            μ
+          </button>
+        )}
       </div>
     </div>
   )
