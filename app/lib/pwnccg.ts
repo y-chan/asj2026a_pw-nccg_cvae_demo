@@ -2,28 +2,36 @@ export type ComplexPoint = { re: number; im: number }
 
 export const LIMIT = 20
 export const GRID_SIZE = 400
+
+export function formatAxisTick(value: number) {
+  const truncated = Math.trunc(value * 100) / 100
+  if (Object.is(truncated, -0)) return '0'
+  return String(truncated)
+}
+
 // Cell centers avoid evaluating the integrable singularity at z = 0.
-function makeCoordinates(size: number) {
+export function makeCoordinates(min: number, max: number, size: number) {
   return Array.from(
     { length: size },
-    (_, i) => -LIMIT + ((i + 0.5) * 2 * LIMIT) / size,
+    (_, i) => min + ((i + 0.5) * (max - min)) / size,
   )
 }
-export const coordinates = makeCoordinates(GRID_SIZE)
-export const previewCoordinates = makeCoordinates(200)
+export const coordinates = makeCoordinates(-LIMIT, LIMIT, GRID_SIZE)
+export const previewCoordinates = makeCoordinates(-LIMIT, LIMIT, 200)
 
 export function shapeGrid(
   alpha: number,
   variance: number,
   mu: ComplexPoint,
-  grid = coordinates,
+  gridX = coordinates,
+  gridY = gridX,
 ) {
   if (!(alpha > 0) || !(variance > 0)) {
     throw new Error('alpha and variance must be positive')
   }
   let maximum = 0
-  const values = grid.map((y) =>
-    grid.map((x) => {
+  const values = gridY.map((y) =>
+    gridX.map((x) => {
       const logScore =
         (alpha - 1) * Math.log(x * x + y * y) -
         ((x - mu.re) ** 2 + (y - mu.im) ** 2) / variance

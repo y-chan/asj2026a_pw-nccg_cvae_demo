@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-import { type ComplexPoint, LIMIT } from '@/app/lib/pwnccg'
+import { type ComplexPoint, formatAxisTick, LIMIT } from '@/app/lib/pwnccg'
 
 const margin = { l: 48, r: 16, t: 16, b: 48 }
 
@@ -13,7 +13,7 @@ struct Params {
   variance: f32,
   mu: vec2f,
   plotLimit: f32,
-  padding: f32,
+  viewCenter: vec2f,
 }
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -79,8 +79,12 @@ fn peakLogScore() -> f32 {
 @fragment
 fn fragment(input: VertexOutput) -> @location(0) vec4f {
   let z = vec2f(
-    input.pixel.x / params.resolution.x * (params.plotLimit * 2.0) - params.plotLimit,
-    input.pixel.y / params.resolution.y * (params.plotLimit * 2.0) - params.plotLimit,
+    params.viewCenter.x +
+      input.pixel.x / params.resolution.x * (params.plotLimit * 2.0) -
+      params.plotLimit,
+    params.viewCenter.y +
+      input.pixel.y / params.resolution.y * (params.plotLimit * 2.0) -
+      params.plotLimit,
   );
   let radiusSquared = max(dot(z, z), 0.000001);
   let distanceSquared = dot(z - params.mu, z - params.mu);
@@ -124,11 +128,33 @@ export default function PwnccgGpuPlot({
   const pending = useRef<ComplexPoint | null>(null)
   const [size, setSize] = useState(0)
   const [ready, setReady] = useState(false)
+  const [zoomFactor, setZoomFactor] = useState(1)
+  const [viewCenter, setViewCenter] = useState<ComplexPoint>({ re: 0, im: 0 })
   const availableSide = Math.max(1, size - margin.l - margin.r)
-  const height = matchSpectrumHeight
+  const plotHeight = matchSpectrumHeight
     ? availableSide
     : availableSide + margin.t + margin.b
-  const side = height - margin.t - margin.b
+  const side = plotHeight - margin.t - margin.b
+  const containerHeight = plotHeight + 40
+  const viewRadius = plotLimit / zoomFactor
+  const centerRe = Math.max(
+    -plotLimit + viewRadius,
+    Math.min(plotLimit - viewRadius, viewCenter.re),
+  )
+  const centerIm = Math.max(
+    -plotLimit + viewRadius,
+    Math.min(plotLimit - viewRadius, viewCenter.im),
+  )
+  const xMin = centerRe - viewRadius
+  const xMax = centerRe + viewRadius
+  const yMin = centerIm - viewRadius
+  const yMax = centerIm + viewRadius
+
+  function changeZoom(event: React.ChangeEvent<HTMLInputElement>) {
+    const nextZoomFactor = Number(event.target.value)
+    setZoomFactor(nextZoomFactor)
+    setViewCenter(mu)
+  }
 
   useEffect(() => {
     const element = container.current
@@ -176,7 +202,7 @@ export default function PwnccgGpuPlot({
         primitive: { topology: 'triangle-list' },
       })
       const uniformBuffer = device.createBuffer({
-        size: 32,
+        size: 40,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       })
       const bindGroup = device.createBindGroup({
@@ -217,8 +243,10 @@ export default function PwnccgGpuPlot({
       variance,
       mu.re,
       mu.im,
-      plotLimit,
+      viewRadius,
       0,
+      centerRe,
+      centerIm,
     ])
     state.device.queue.writeBuffer(state.uniformBuffer, 0, values)
     const encoder = state.device.createCommandEncoder()
@@ -237,7 +265,7 @@ export default function PwnccgGpuPlot({
     pass.draw(6)
     pass.end()
     state.device.queue.submit([encoder.finish()])
-  }, [alpha, variance, mu, plotLimit, ready, side, size])
+  }, [alpha, centerIm, centerRe, mu, variance, viewRadius, ready, side, size])
 
   function move(event: React.PointerEvent<HTMLDivElement>) {
     const bounds = event.currentTarget.getBoundingClientRect()
@@ -246,16 +274,14 @@ export default function PwnccgGpuPlot({
         -plotLimit,
         Math.min(
           plotLimit,
-          ((event.clientX - bounds.left) / bounds.width) * (plotLimit * 2) -
-            plotLimit,
+          xMin + ((event.clientX - bounds.left) / bounds.width) * (xMax - xMin),
         ),
       ),
       im: Math.max(
         -plotLimit,
         Math.min(
           plotLimit,
-          plotLimit -
-            ((event.clientY - bounds.top) / bounds.height) * (plotLimit * 2),
+          yMax - ((event.clientY - bounds.top) / bounds.height) * (yMax - yMin),
         ),
       ),
     }
@@ -268,7 +294,11 @@ export default function PwnccgGpuPlot({
   }
 
   return (
-    <div ref={container} className="relative w-full" style={{ height }}>
+    <div
+      ref={container}
+      className="relative w-full"
+      style={{ height: containerHeight }}
+    >
       <div
         className="absolute overflow-hidden"
         style={{ left: margin.l, top: margin.t, width: side, height: side }}
@@ -278,7 +308,7 @@ export default function PwnccgGpuPlot({
       <svg
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
-        viewBox={`0 0 ${size} ${height}`}
+        viewBox={`0 0 ${size} ${plotHeight}`}
       >
         <g fill="none" stroke="#777" strokeWidth="1">
           <line
@@ -295,33 +325,27 @@ export default function PwnccgGpuPlot({
           />
         </g>
         <g fill="#333" fontSize="11" textAnchor="middle">
-          {[-plotLimit, -plotLimit / 2, 0, plotLimit / 2, plotLimit].map(
-            (value) => {
-              const x =
-                margin.l + ((value + plotLimit) / (plotLimit * 2)) * side
-              return (
-                <text key={`x-${value}`} x={x} y={height - 22}>
-                  {value}
-                </text>
-              )
-            },
-          )}
-          <text x={margin.l + side / 2} y={height - 4}>
+          {[xMin, centerRe, xMax].map((value) => {
+            const x = margin.l + ((value - xMin) / (xMax - xMin)) * side
+            return (
+              <text key={`x-${value}`} x={x} y={plotHeight - 22}>
+                {formatAxisTick(value)}
+              </text>
+            )
+          })}
+          <text x={margin.l + side / 2} y={plotHeight - 4}>
             Re(z)
           </text>
         </g>
         <g fill="#333" fontSize="11" textAnchor="end">
-          {[-plotLimit, -plotLimit / 2, 0, plotLimit / 2, plotLimit].map(
-            (value) => {
-              const y =
-                margin.t + ((plotLimit - value) / (plotLimit * 2)) * side
-              return (
-                <text key={`y-${value}`} x={margin.l - 7} y={y + 4}>
-                  {value}
-                </text>
-              )
-            },
-          )}
+          {[yMin, centerIm, yMax].map((value) => {
+            const y = margin.t + ((yMax - value) / (yMax - yMin)) * side
+            return (
+              <text key={`y-${value}`} x={margin.l - 7} y={y + 4}>
+                {formatAxisTick(value)}
+              </text>
+            )
+          })}
           <text transform={`translate(16 ${margin.t + side / 2}) rotate(-90)`}>
             Im(z)
           </text>
@@ -357,8 +381,8 @@ export default function PwnccgGpuPlot({
             title="ドラッグ、または矢印キーでμを移動"
             className="absolute flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 cursor-grab items-center justify-center rounded-full border-2 border-white bg-black/70 text-sm font-bold text-white shadow-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white active:cursor-grabbing"
             style={{
-              left: `${((mu.re + plotLimit) / (plotLimit * 2)) * 100}%`,
-              top: `${((plotLimit - mu.im) / (plotLimit * 2)) * 100}%`,
+              left: `${((mu.re - xMin) / (xMax - xMin)) * 100}%`,
+              top: `${((yMax - mu.im) / (yMax - yMin)) * 100}%`,
             }}
             onKeyDown={(event) => {
               const step = event.shiftKey ? 1 : 0.1
@@ -387,6 +411,18 @@ export default function PwnccgGpuPlot({
           </button>
         )}
       </div>
+      <label className="absolute bottom-0 left-1/2 flex -translate-x-1/2 items-center gap-2 text-xs text-neutral-600">
+        <span>拡大率 {zoomFactor.toFixed(1)}×</span>
+        <input
+          aria-label="分布の拡大率"
+          type="range"
+          min="1"
+          max="20"
+          step="0.1"
+          value={zoomFactor}
+          onChange={changeZoom}
+        />
+      </label>
     </div>
   )
 }
