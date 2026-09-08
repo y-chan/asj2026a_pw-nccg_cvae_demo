@@ -22,6 +22,13 @@ const methods: Array<{ key: ComparisonMethodKey; label: string }> = [
   { key: 'cvae-pwnccg', label: 'PW-NCCG予測 複素VAE（提案手法）' },
 ]
 
+const sourceDirectories: Record<ComparisonMethodKey, string> = {
+  gt: 'gt',
+  cvae: 'cvae',
+  'cvae-withvar': 'cvae-withvar',
+  'cvae-pwnccg': 'cvae-pwnccg',
+}
+
 export default function AudioComparisonDemo({ file }: { file: string }) {
   const [data, setData] = useState<ComparisonData | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -66,27 +73,15 @@ export default function AudioComparisonDemo({ file }: { file: string }) {
     () => `time=${selected.time}, frequency=${selected.frequency}`,
     [selected],
   )
-
-  if (loadedFile === file && error) {
-    return (
-      <p className="text-sm text-red-800">
-        比較デモの読込に失敗しました: {error}
-      </p>
-    )
-  }
-  if (loadedFile !== file || !data) {
-    return (
-      <div className="py-8 text-sm text-neutral-600" role="status">
-        スペクトル・音声・npyデータを読み込み中…
-      </div>
-    )
-  }
+  const activeData = loadedFile === file ? data : null
+  const activeError = loadedFile === file ? error : null
 
   return (
     <div className="space-y-4">
+      {activeError && <p className="text-sm text-red-800">{activeError}</p>}
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-neutral-700">
         <span>
-          スペクトル上をマウスオーバー／タップするとbinを選択できます。
+          スペクトル上をクリック／タップ、ドラッグするとbinを選択できます。
         </span>
         <output className="tabular-nums">選択中: {selectedLabel}</output>
       </div>
@@ -101,9 +96,9 @@ export default function AudioComparisonDemo({ file }: { file: string }) {
           </thead>
           <tbody>
             {methods.map(({ key, label }) => {
-              const methodData = data[key]
-              const spectrum = methodData.spectrum
-              const params = methodData.parameters
+              const methodData = activeData?.[key]
+              const spectrum = methodData?.spectrum ?? null
+              const params = methodData?.parameters ?? null
               const point =
                 params && spectrum
                   ? parameterAt(
@@ -121,12 +116,18 @@ export default function AudioComparisonDemo({ file }: { file: string }) {
                 >
                   <th className="p-3 text-left font-semibold">{label}</th>
                   <td className="space-y-3 p-3">
-                    <SpectrumCanvas
-                      spectrum={spectrum}
-                      imageUrl={methodData.imageUrl}
-                      selected={selected}
-                      onSelect={setSelected}
-                    />
+                    {methodData ? (
+                      <SpectrumCanvas
+                        spectrum={spectrum}
+                        imageUrl={methodData.imageUrl}
+                        selected={selected}
+                        onSelect={setSelected}
+                      />
+                    ) : (
+                      <div className="flex aspect-[2/1] items-center justify-center rounded border border-neutral-300 bg-neutral-100 text-sm text-neutral-600">
+                        スペクトルを読み込み中…
+                      </div>
+                    )}
                     {/*
                     {key === 'cvae-pwnccg' && methodData.alphaSpectrum && (
                       <div>
@@ -145,9 +146,9 @@ export default function AudioComparisonDemo({ file }: { file: string }) {
                     <audio
                       className="w-full"
                       controls
-                      src={methodData.audioUrl}
+                      src={`/${sourceDirectories[key]}/${file}.wav`}
                     />
-                    {methodData.warning && (
+                    {methodData?.warning && (
                       <p className="text-xs text-amber-800">
                         {methodData.warning}
                       </p>
@@ -174,9 +175,13 @@ export default function AudioComparisonDemo({ file }: { file: string }) {
                           {point.alpha.toFixed(2)}
                         </p>
                       </>
-                    ) : (
+                    ) : activeData ? (
                       <p className="py-12 text-center text-sm text-neutral-600">
                         分布パラメータはありません
+                      </p>
+                    ) : (
+                      <p className="py-12 text-center text-sm text-neutral-600">
+                        分布を読み込み中…
                       </p>
                     )}
                   </td>
