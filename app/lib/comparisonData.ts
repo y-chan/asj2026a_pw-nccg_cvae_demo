@@ -420,7 +420,7 @@ export function parameterAt(
   }
   return {
     mu,
-    variance: parameters.variance?.[index] ?? 0.1,
+    variance: parameters.variance?.[index] ?? 0.001,
     alpha: parameters.alpha?.[index] ?? 1,
   }
 }

@@ -14,6 +14,9 @@ import {
 const DistributionPlot = dynamic(() => import('./PwnccgPlotRouter'), {
   ssr: false,
 })
+const AmplitudePlot = dynamic(() => import('./PwnccgAmplitudePlotRouter'), {
+  ssr: false,
+})
 
 const methods: Array<{ key: ComparisonMethodKey; label: string }> = [
   { key: 'gt', label: '自然音声' },
@@ -86,12 +89,13 @@ export default function AudioComparisonDemo({ file }: { file: string }) {
         <output className="tabular-nums">選択中: {selectedLabel}</output>
       </div>
       <div className="overflow-x-auto rounded border border-neutral-300">
-        <table className="w-full min-w-[760px] table-fixed">
+        <table className="w-full min-w-[960px] table-fixed">
           <thead>
             <tr className="border-b border-neutral-300 text-left">
-              <th className="w-32 p-3">手法</th>
+              <th className="w-24 p-3">手法</th>
               <th className="p-3">スペクトル・音声</th>
-              <th className="p-3">選択binの分布</th>
+              <th className="p-3">選択binの複素分布</th>
+              <th className="p-3">選択binの振幅分布</th>
             </tr>
           </thead>
           <tbody>
@@ -99,6 +103,8 @@ export default function AudioComparisonDemo({ file }: { file: string }) {
               const methodData = activeData?.[key]
               const spectrum = methodData?.spectrum ?? null
               const params = methodData?.parameters ?? null
+              const hasAmplitudeDistribution =
+                key === 'cvae-pwnccg' && Boolean(params?.alpha)
               const point =
                 params && spectrum
                   ? parameterAt(
@@ -157,7 +163,7 @@ export default function AudioComparisonDemo({ file }: { file: string }) {
                   <td className="p-3">
                     {point ? (
                       <>
-                        <div className="mx-auto w-full max-w-[480px]">
+                        <div className="w-full">
                           <DistributionPlot
                             alpha={point.alpha}
                             variance={point.variance}
@@ -171,13 +177,41 @@ export default function AudioComparisonDemo({ file }: { file: string }) {
                           μ={point.mu.re.toFixed(2)}{' '}
                           {point.mu.im < 0 ? '−' : '+'}{' '}
                           {Math.abs(point.mu.im).toFixed(2)}i, σ²=
-                          {point.variance.toFixed(2)}, α=
-                          {point.alpha.toFixed(2)}
+                          {point.variance.toFixed(2)}
+                          {hasAmplitudeDistribution && (
+                            <> , α={point.alpha.toFixed(2)}</>
+                          )}
                         </p>
                       </>
                     ) : activeData ? (
                       <p className="py-12 text-center text-sm text-neutral-600">
-                        分布パラメータはありません
+                        —
+                      </p>
+                    ) : (
+                      <p className="py-12 text-center text-sm text-neutral-600">
+                        分布を読み込み中…
+                      </p>
+                    )}
+                  </td>
+                  <td className="p-3">
+                    {hasAmplitudeDistribution && point ? (
+                      <>
+                        <div className="w-full">
+                          <AmplitudePlot
+                            alpha={point.alpha}
+                            variance={point.variance}
+                            nu={Math.hypot(point.mu.re, point.mu.im)}
+                            plotLimit={40}
+                            matchSpectrumHeight
+                          />
+                        </div>
+                        <p className="mt-1 text-center text-xs tabular-nums text-neutral-600">
+                          ν={Math.hypot(point.mu.re, point.mu.im).toFixed(2)}
+                        </p>
+                      </>
+                    ) : activeData ? (
+                      <p className="py-12 text-center text-sm text-neutral-600">
+                        —
                       </p>
                     ) : (
                       <p className="py-12 text-center text-sm text-neutral-600">

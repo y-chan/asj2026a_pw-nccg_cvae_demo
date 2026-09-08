@@ -16,6 +16,17 @@ const Plot = dynamic(() => import('./PwnccgPlotRouter'), {
     </div>
   ),
 })
+const AmplitudePlot = dynamic(() => import('./PwnccgAmplitudePlotRouter'), {
+  ssr: false,
+  loading: () => (
+    <div
+      className="flex min-h-[300px] items-center justify-center"
+      role="status"
+    >
+      グラフを読み込み中…
+    </div>
+  ),
+})
 const initialMu = { re: 4, im: 3 }
 
 export default function PwnccgDemo() {
@@ -26,7 +37,7 @@ export default function PwnccgDemo() {
   return (
     <section
       aria-label="PW-NCCGの形状を操作する"
-      className="mx-auto w-full max-w-2xl"
+      className="mx-auto w-full max-w-4xl"
     >
       <p className="text-md text-neutral-600">
         μ、σ²、αを操作して確率密度の変化を見ることができます
@@ -82,7 +93,21 @@ export default function PwnccgDemo() {
       </div>
       <p className="mt-1 text-sm text-neutral-600">図上のμをドラッグして移動</p>
       <p className="mt-1 text-sm text-neutral-600">α=1で複素ガウス分布と同義</p>
-      <Plot alpha={alpha} variance={variance} mu={mu} onMuChange={setMu} />
+      <div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
+        <Plot alpha={alpha} variance={variance} mu={mu} onMuChange={setMu} />
+        <div>
+          <p className="mb-2 text-sm text-neutral-600">
+            パワー分布(r²の分布)。縦線はν=|μ|の位置を示す。
+          </p>
+          <AmplitudePlot
+            alpha={alpha}
+            variance={variance}
+            nu={Math.hypot(mu.re, mu.im)}
+            plotLimit={40}
+            matchSpectrumHeight={true}
+          />
+        </div>
+      </div>
     </section>
   )
 }
