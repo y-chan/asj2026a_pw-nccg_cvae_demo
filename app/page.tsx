@@ -4,22 +4,17 @@ import * as path from 'path'
 import ComparisonDemoLoader from '@/app/components/ComparisonDemoLoader'
 import PwnccgDemo from '@/app/components/PwnccgDemo'
 
-async function getWavFiles() {
-  const files = [
-    ...glob.globSync('public/gt/*.wav'),
-    ...glob.globSync('public/cvae/*.wav'),
-    ...glob.globSync('public/cvae-withvar/*.wav'),
-    ...glob.globSync('public/cvae-pwnccg/*.wav'),
-  ]
+async function getSampleIds() {
+  const files = glob.globSync('public/gt/*-mu.npy')
   const sampleIds = files.map((file) => {
     const name = path.basename(file)
-    return name.endsWith('.wav') ? name.slice(0, -'.wav'.length) : name
+    return name.endsWith('-mu.npy') ? name.slice(0, -'-mu.npy'.length) : name
   })
   return Array.from(new Set(sampleIds)).sort()
 }
 
 export default async function Home() {
-  const wavFiles = await getWavFiles()
+  const sampleIds = await getSampleIds()
   return (
     <main className="flex min-h-screen flex-col items-center p-8">
       <div className="w-full text-center items-center font-sans md:text-4xl text-2xl pt-16">
@@ -60,7 +55,7 @@ export default async function Home() {
         </div>
         <div>
           <div className="md:text-2xl text-xl font-bold py-8">デモ音声比較</div>
-          <ComparisonDemoLoader files={wavFiles} />
+          <ComparisonDemoLoader files={sampleIds} />
         </div>
       </div>
     </main>

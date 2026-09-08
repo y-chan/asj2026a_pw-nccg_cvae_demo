@@ -1,8 +1,9 @@
 import { load, type NpyArray, type TypedArray } from 'npyjs'
 
 import type { ComplexPoint } from '@/app/lib/pwnccg'
+import type { ComparisonMethodKey, ParameterGrid } from '@/app/types/comparison'
 
-export type ComparisonMethodKey = 'gt' | 'cvae' | 'cvae-withvar' | 'cvae-pwnccg'
+export type { ComparisonMethodKey, ParameterGrid } from '@/app/types/comparison'
 
 export type SpectrumGrid = {
   values: Float32Array
@@ -12,19 +13,7 @@ export type SpectrumGrid = {
   max: number
 }
 
-export type ParameterGrid = {
-  muRe: Float32Array
-  muIm: Float32Array
-  distributionMuRe: Float32Array
-  distributionMuIm: Float32Array
-  variance?: Float32Array
-  alpha?: Float32Array
-  rows: number
-  columns: number
-}
-
 export type ComparisonMethodData = {
-  audioUrl: string
   spectrum: SpectrumGrid | null
   parameters: ParameterGrid | null
   imageUrl: string | null
@@ -35,10 +24,9 @@ export type ComparisonData = Record<ComparisonMethodKey, ComparisonMethodData>
 
 type NumericNpy = NpyArray<TypedArray>
 
-type NormalizationStats = {
+type DistributionCenter = {
   meanRe: number[]
   meanIm: number[]
-  std: number[]
 }
 
 const methodKeys: ComparisonMethodKey[] = [
@@ -163,7 +151,7 @@ function toParameters(
   muArray: NumericNpy,
   varianceArray: NumericNpy | null,
   alphaArray: NumericNpy | null,
-  stats: NormalizationStats,
+  center: DistributionCenter,
   centerDistribution: boolean,
   varianceComponent = 0,
   alphaComponent = 0,
@@ -188,11 +176,8 @@ function toParameters(
         muRe[index] = componentAt(muArray, 0, row, column)
         muIm[index] = componentAt(muArray, 1, row, column)
       }
-      const meanRe = stats.meanRe[column]
-      const meanIm = stats.meanIm[column]
-      const scale = stats.std[column]
-      muRe[index] = muRe[index] * scale + meanRe
-      muIm[index] = muIm[index] * scale + meanIm
+      const meanRe = center.meanRe[column]
+      const meanIm = center.meanIm[column]
       distributionMuRe[index] = centerDistribution
         ? muRe[index] - meanRe
         : muRe[index]
@@ -271,7 +256,7 @@ export function parametersToSpectrum(
 async function loadParameters(
   sample: string,
   method: ComparisonMethodKey,
-  stats: NormalizationStats,
+  center: DistributionCenter,
 ): Promise<ParameterGrid | null> {
   const mu = await loadFirst(pathsFor(sample, method, 'mu'))
   const packed =
@@ -307,47 +292,42 @@ async function loadParameters(
     packed.result,
     variance?.result ?? packedVariance,
     alpha?.result ?? packedAlpha,
-    stats,
+    center,
     method === 'cvae-pwnccg',
     packedVariance ? 2 : 0,
     packedAlpha ? 3 : 0,
   )
 }
 
-async function loadStats(): Promise<NormalizationStats> {
+async function loadDistributionCenter(): Promise<DistributionCenter> {
   const response = await fetch('/stats.json')
   if (!response.ok) throw new Error(`stats.json: ${response.status}`)
   const json = (await response.json()) as { spec?: unknown }
   if (
     !Array.isArray(json.spec) ||
-    json.spec.length !== 3 ||
-    !json.spec.every((values) => Array.isArray(values))
+    json.spec.length < 2 ||
+    !json.spec.slice(0, 2).every((values) => Array.isArray(values))
   ) {
     throw new Error('stats.jsonのspecは3本の配列である必要があります')
   }
-  const [meanRe, meanIm, std] = json.spec as number[][]
-  if (
-    !meanRe.length ||
-    meanRe.length !== meanIm.length ||
-    meanRe.length !== std.length
-  ) {
+  const [meanRe, meanIm] = json.spec as number[][]
+  if (!meanRe.length || meanRe.length !== meanIm.length) {
     throw new Error('stats.jsonの配列長が一致していません')
   }
-  return { meanRe, meanIm, std }
+  return { meanRe, meanIm }
 }
 
 async function loadMethod(
   sample: string,
   method: ComparisonMethodKey,
-  stats: NormalizationStats,
+  center: DistributionCenter,
 ): Promise<ComparisonMethodData> {
-  const audioUrl = `/${sourceDirectories[method]}/${sample}.wav`
   const warning: string[] = []
   let parameters: ParameterGrid | null = null
   let spectrum: SpectrumGrid | null = null
 
   try {
-    parameters = await loadParameters(sample, method, stats)
+    parameters = await loadParameters(sample, method, center)
   } catch (error) {
     warning.push(
       error instanceof Error ? error.message : 'パラメータの読込に失敗しました',
@@ -361,7 +341,6 @@ async function loadMethod(
     warning.push('スペクトルデータが未配置です')
   }
   return {
-    audioUrl,
     spectrum,
     parameters,
     imageUrl: null,
@@ -370,11 +349,11 @@ async function loadMethod(
 }
 
 async function loadComparisonDataUncached(sample: string) {
-  const stats = await loadStats()
+  const center = await loadDistributionCenter()
   const entries = await Promise.all(
     methodKeys.map(
       async (method) =>
-        [method, await loadMethod(sample, method, stats)] as const,
+        [method, await loadMethod(sample, method, center)] as const,
     ),
   )
   return Object.fromEntries(entries) as ComparisonData

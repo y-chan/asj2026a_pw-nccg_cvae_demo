@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic'
 import { useEffect, useMemo, useState } from 'react'
 
 import SpectrumCanvas from '@/app/components/SpectrumCanvas'
+import SynthesizedAudio from '@/app/components/SynthesizedAudio'
 import {
   type ComparisonData,
   type ComparisonMethodKey,
@@ -24,13 +25,6 @@ const methods: Array<{ key: ComparisonMethodKey; label: string }> = [
   { key: 'cvae-withvar', label: '分散予測 複素VAE' },
   { key: 'cvae-pwnccg', label: 'PW-NCCG予測 複素VAE（提案手法）' },
 ]
-
-const sourceDirectories: Record<ComparisonMethodKey, string> = {
-  gt: 'gt',
-  cvae: 'cvae',
-  'cvae-withvar': 'cvae-withvar',
-  'cvae-pwnccg': 'cvae-pwnccg',
-}
 
 export default function AudioComparisonDemo({ file }: { file: string }) {
   const [data, setData] = useState<ComparisonData | null>(null)
@@ -149,11 +143,7 @@ export default function AudioComparisonDemo({ file }: { file: string }) {
                       </div>
                     )}
                     */}
-                    <audio
-                      className="w-full"
-                      controls
-                      src={`/${sourceDirectories[key]}/${file}.wav`}
-                    />
+                    <SynthesizedAudio parameters={params} method={key} />
                     {methodData?.warning && (
                       <p className="text-xs text-amber-800">
                         {methodData.warning}
