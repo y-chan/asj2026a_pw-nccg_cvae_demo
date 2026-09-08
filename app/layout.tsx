@@ -16,9 +16,9 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
-  title: '歌唱音声合成におけるF0の自然性向上のためのDiffusion-GANモデルの検討',
+  title: '出力にべき重み付き複素ガウス分布を仮定したVAEに基づく音声表現',
   description:
-    '歌唱音声合成におけるF0の自然性向上のためのDiffusion-GANモデルのデモページ',
+    '出力にべき重み付き複素ガウス分布を仮定したVAEに基づく音声表現のデモページ',
 }
 
 export default function RootLayout({
