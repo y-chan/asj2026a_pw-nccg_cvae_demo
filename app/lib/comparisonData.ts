@@ -26,7 +26,6 @@ export type ParameterGrid = {
 export type ComparisonMethodData = {
   audioUrl: string
   spectrum: SpectrumGrid | null
-  alphaSpectrum: SpectrumGrid | null
   parameters: ParameterGrid | null
   imageUrl: string | null
   warning: string | null
@@ -39,7 +38,7 @@ type NumericNpy = NpyArray<TypedArray>
 type NormalizationStats = {
   meanRe: number[]
   meanIm: number[]
-  variance: number[]
+  std: number[]
 }
 
 const methodKeys: ComparisonMethodKey[] = [
@@ -191,7 +190,7 @@ function toParameters(
       }
       const meanRe = stats.meanRe[column]
       const meanIm = stats.meanIm[column]
-      const scale = stats.variance[column]
+      const scale = stats.std[column]
       muRe[index] = muRe[index] * scale + meanRe
       muIm[index] = muIm[index] * scale + meanIm
       distributionMuRe[index] = centerDistribution
@@ -269,23 +268,6 @@ export function parametersToSpectrum(
   }
 }
 
-export function alphaToSpectrum(
-  parameters: ParameterGrid,
-): SpectrumGrid | null {
-  if (!parameters.alpha) return null
-  const rows = parameters.columns
-  const columns = parameters.rows
-  const values = new Float32Array(rows * columns)
-  for (let time = 0; time < parameters.rows; time += 1) {
-    for (let frequency = 0; frequency < parameters.columns; frequency += 1) {
-      const sourceIndex = time * parameters.columns + frequency
-      const value = parameters.alpha[sourceIndex]
-      values[frequency * columns + time] = value
-    }
-  }
-  return { values, rows, columns, min: 0.2, max: 5 }
-}
-
 async function loadParameters(
   sample: string,
   method: ComparisonMethodKey,
@@ -343,15 +325,15 @@ async function loadStats(): Promise<NormalizationStats> {
   ) {
     throw new Error('stats.jsonのspecは3本の配列である必要があります')
   }
-  const [meanRe, meanIm, variance] = json.spec as number[][]
+  const [meanRe, meanIm, std] = json.spec as number[][]
   if (
     !meanRe.length ||
     meanRe.length !== meanIm.length ||
-    meanRe.length !== variance.length
+    meanRe.length !== std.length
   ) {
     throw new Error('stats.jsonの配列長が一致していません')
   }
-  return { meanRe, meanIm, variance }
+  return { meanRe, meanIm, std }
 }
 
 async function loadMethod(
@@ -363,7 +345,6 @@ async function loadMethod(
   const warning: string[] = []
   let parameters: ParameterGrid | null = null
   let spectrum: SpectrumGrid | null = null
-  let alphaSpectrum: SpectrumGrid | null = null
 
   try {
     parameters = await loadParameters(sample, method, stats)
@@ -375,8 +356,6 @@ async function loadMethod(
 
   if (parameters) {
     spectrum = parametersToSpectrum(parameters, method === 'cvae-pwnccg')
-    alphaSpectrum =
-      method === 'cvae-pwnccg' ? alphaToSpectrum(parameters) : null
   }
   if (!spectrum) {
     warning.push('スペクトルデータが未配置です')
@@ -384,7 +363,6 @@ async function loadMethod(
   return {
     audioUrl,
     spectrum,
-    alphaSpectrum,
     parameters,
     imageUrl: null,
     warning: warning.length ? warning.join(' / ') : null,

@@ -42,7 +42,7 @@ export default async function Home() {
           実験では，複素数を仮定した潜在表現から品質の高い音声を復元できることを示した．
           <div className="flex flex-col items-center">
             <img
-              className="w-[40vw]"
+              className="w-[30vw]"
               src="/pw-nccg-decoder-vae.svg"
               alt="pw-nccg-decoder-vae"
             />
